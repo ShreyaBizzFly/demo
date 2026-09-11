@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Log in — Demo SaaS</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="container">
+  <div class="card">
+    <h1>Log in</h1>
+    <form id="loginForm">
+      <label for="email">Email</label>
+      <input id="email" type="email" required />
+
+      <label for="password">Password</label>
+      <input id="password" type="password" required />
+
+      <button class="btn" type="submit">Log in</button>
+      <div class="error" id="error"></div>
+    </form>
+    <div class="hint"><a href="/forgot-password.html">Forgot password?</a></div>
+    <div class="hint">No account? <a href="/signup.html">Sign up</a></div>
+    <div class="hint">Demo login: owner@demo.com / password123</div>
+  </div>
+</div>
+<script>
+const form = document.getElementById('loginForm');
+const errorEl = document.getElementById('error');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  // Only res.ok is checked here — the login route returns 200 even for
+  // wrong credentials, so a bad password just does nothing visible.
+  if (!res.ok) {
+    const data = await res.json();
+    errorEl.textContent = data.error;
+    return;
+  }
+  window.location.href = '/dashboard.html';
+});
+</script>
+</body>
+</html>

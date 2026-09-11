@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Account — Demo SaaS</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="navbar">
+  <a href="/dashboard.html">Demo SaaS</a>
+  <div class="right">
+    <span id="navEmail"></span>
+    <a href="/dashboard.html" style="color:#fff;">Dashboard</a>
+    <button id="logoutBtn">Log out</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="card section">
+    <h2>Profile</h2>
+    <form id="profileForm">
+      <label for="name">Display name</label>
+      <input id="name" type="text" />
+      <button class="btn small" type="submit" style="margin-top:12px;">Save</button>
+    </form>
+  </div>
+
+  <div class="card section">
+    <h2>Change password</h2>
+    <form id="passwordForm">
+      <label for="currentPassword">Current password</label>
+      <input id="currentPassword" type="password" required />
+
+      <label for="newPassword">New password</label>
+      <input id="newPassword" type="password" placeholder="At least 8 characters" required />
+
+      <label for="confirmNewPassword">Confirm new password</label>
+      <input id="confirmNewPassword" type="password" required />
+
+      <button class="btn small" type="submit" style="margin-top:12px;">Update password</button>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+async function loadMe() {
+  const res = await fetch('/api/me');
+  if (!res.ok) {
+    window.location.href = '/login.html';
+    return;
+  }
+  const me = await res.json();
+  document.getElementById('navEmail').textContent = me.user.email;
+  document.getElementById('name').value = me.user.name || '';
+}
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.href = '/login.html';
+});
+
+document.getElementById('profileForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('name').value;
+  await fetch('/api/account/profile', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  // BUG (profile-03): the navbar email/name area is never refreshed after
+  // saving, so a changed display name only shows up after a manual reload.
+  showToast('Profile saved');
+});
+
+document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const currentPassword = document.getElementById('currentPassword').value;
+  const newPassword = document.getElementById('newPassword').value;
+  const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+
+  const res = await fetch('/api/account/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      currentPassword,
+      newPassword,
+      confirmPassword: confirmNewPassword,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    showToast(data.error);
+    return;
+  }
+  showToast('Password updated');
+  e.target.reset();
+});
+
+loadMe();
+</script>
+</body>
+</html>

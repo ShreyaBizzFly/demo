@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Dashboard — Demo SaaS</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="navbar">
+  <a href="/dashboard.html">Demo SaaS</a>
+  <div class="right">
+    <span id="navEmail"></span>
+    <a href="/account.html" style="color:#fff;">Account</a>
+    <button id="logoutBtn">Log out</button>
+  </div>
+</div>
+
+<div class="container wide">
+  <div class="stats">
+    <div class="stat"><div class="num" id="statMembers">–</div><div class="label">Total Members</div></div>
+    <div class="stat"><div class="num" id="statInvites">–</div><div class="label">Pending Invites</div></div>
+  </div>
+
+  <div class="card section">
+    <h2>Organization settings</h2>
+    <form id="orgForm">
+      <label for="orgName">Organization name</label>
+      <input id="orgName" type="text" />
+      <button class="btn small" type="submit" style="margin-top:12px;">Save</button>
+    </form>
+  </div>
+
+  <div class="card section">
+    <h2>Members</h2>
+    <table>
+      <thead><tr><th>Email</th><th>Role</th><th></th></tr></thead>
+      <tbody id="membersBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card section">
+    <h2>Invite a teammate</h2>
+    <form id="inviteForm" class="row">
+      <input id="inviteEmail" type="email" placeholder="teammate@company.com" required />
+      <button class="btn small" type="submit">Send invite</button>
+    </form>
+
+    <table>
+      <thead><tr><th>Email</th><th>Status</th><th></th></tr></thead>
+      <tbody id="invitesBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let me = null;
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+async function loadMe() {
+  const res = await fetch('/api/me');
+  if (!res.ok) {
+    window.location.href = '/login.html';
+    return;
+  }
+  me = await res.json();
+  document.getElementById('navEmail').textContent = me.user.email;
+  document.getElementById('orgName').value = me.org ? me.org.name : '';
+}
+
+async function loadStats() {
+  const res = await fetch('/api/org/stats');
+  const data = await res.json();
+  document.getElementById('statMembers').textContent = data.memberCount;
+  document.getElementById('statInvites').textContent = data.pendingInvites;
+}
+
+async function loadMembers() {
+  const res = await fetch('/api/org/members');
+  const data = await res.json();
+  const body = document.getElementById('membersBody');
+  body.innerHTML = '';
+
+  data.members.forEach((m) => {
+    const tr = document.createElement('tr');
+
+    const emailTd = document.createElement('td');
+    emailTd.textContent = m.email;
+
+    const roleTd = document.createElement('td');
+    if (m.role === 'owner') {
+      roleTd.textContent = 'Owner';
+    } else {
+      const select = document.createElement('select');
+      ['member', 'admin'].forEach((r) => {
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.textContent = r;
+        if (r === m.role) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.onchange = () => {
+        // BUG (org-04): `m` here is captured by closure per-iteration, which
+        // is correct for `const m` — but the request uses the *outer*
+        // `data.members` array's last id via a stale `currentMemberId`
+        // instead of this row's own membership id, so changing role on one
+        // row actually updates whichever member loaded last.
+        fetch(`/api/org/member/${currentMemberId}/role`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: select.value }),
+        }).then(() => showToast('Role updated'));
+      };
+      roleTd.appendChild(select);
+    }
+
+    const actionTd = document.createElement('td');
+    if (m.role !== 'owner') {
+      const btn = document.createElement('button');
+      btn.className = 'btn small danger';
+      btn.textContent = 'Remove';
+      btn.onclick = async () => {
+        await fetch(`/api/org/member/${m.id}/remove`, { method: 'POST' });
+        loadMembers();
+        loadStats();
+      };
+      actionTd.appendChild(btn);
+    }
+
+    tr.appendChild(emailTd);
+    tr.appendChild(roleTd);
+    tr.appendChild(actionTd);
+    body.appendChild(tr);
+
+    // BUG (org-04 continued): this module-level variable is overwritten on
+    // every row, so by the time any dropdown's onchange actually fires, it
+    // always points at the last member in the list.
+    currentMemberId = m.id;
+  });
+}
+let currentMemberId = null;
+
+async function loadInvites() {
+  const res = await fetch('/api/org/invites');
+  const data = await res.json();
+  const body = document.getElementById('invitesBody');
+  body.innerHTML = '';
+
+  data.invites.forEach((inv) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${inv.email}</td><td>${inv.status}</td><td></td>`;
+
+    const btn = document.createElement('button');
+    btn.className = 'btn small ghost';
+    btn.textContent = 'Cancel';
+    btn.onclick = () => {
+      // BUG (org-05): the row is removed from the DOM immediately without
+      // waiting for (or checking) the server response, and the invite list
+      // is never re-fetched. If the cancel request fails, the invite is
+      // still pending server-side but silently disappears from the UI until
+      // the next full page reload.
+      tr.remove();
+      fetch(`/api/org/invite/${inv.id}/cancel`, { method: 'POST' });
+    };
+    tr.lastElementChild.appendChild(btn);
+    body.appendChild(tr);
+  });
+}
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  // BUG (auth-03): the button hides the nav email optimistically but never
+  // redirects to the login page or reloads, so the rest of the dashboard
+  // (members, invites, stats) stays fully visible and interactive even
+  // though the session has just been destroyed server-side.
+  fetch('/api/logout', { method: 'POST' });
+  document.getElementById('navEmail').textContent = '';
+});
+
+document.getElementById('orgForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('orgName').value;
+  const res = await fetch('/api/org', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  // BUG (dash-03): success toast fires unconditionally instead of checking
+  // res.ok, so a failed save (e.g. blank name, expired session) still tells
+  // the user "Saved".
+  showToast('Saved');
+  void res;
+});
+
+document.getElementById('inviteForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const emailInput = document.getElementById('inviteEmail');
+  await fetch('/api/org/invite', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: emailInput.value }),
+  });
+  emailInput.value = '';
+  loadInvites();
+  // Note: loadStats() is intentionally not called here — see dash-04 in
+  // BUGS.md: the "Pending Invites" stat card only updates on page load.
+});
+
+loadMe().then(() => {
+  loadStats();
+  loadMembers();
+  loadInvites();
+});
+</script>
+</body>
+</html>

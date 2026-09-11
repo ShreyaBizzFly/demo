@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Sign up — Demo SaaS</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="container">
+  <div class="card">
+    <h1>Create your account</h1>
+    <form id="signupForm">
+      <label for="orgName">Company / workspace name</label>
+      <input id="orgName" type="text" placeholder="Acme Inc" required />
+
+      <label for="email">Work email</label>
+      <input id="email" type="email" placeholder="you@company.com" required />
+
+      <label for="password">Password</label>
+      <input id="password" type="password" placeholder="At least 8 characters" required />
+
+      <label for="confirmPassword">Confirm password</label>
+      <input id="confirmPassword" type="password" required />
+
+      <button class="btn" type="submit">Create account</button>
+      <div class="error" id="error"></div>
+    </form>
+    <div class="hint">Already have an account? <a href="/login.html">Log in</a></div>
+  </div>
+</div>
+<script src="/app.js"></script>
+<script>
+const form = document.getElementById('signupForm');
+const errorEl = document.getElementById('error');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const orgName = document.getElementById('orgName').value;
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const confirmPassword = document.getElementById('confirmPassword').value;
+
+  // Passwords should match before we even hit the network...
+  const passwordsMatch = password === confirmPassword;
+
+  const res = await fetch('/api/signup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orgName, email, password, confirmPassword }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error;
+    return;
+  }
+  window.location.href = '/dashboard.html';
+});
+</script>
+</body>
+</html>

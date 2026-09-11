@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Demo SaaS</title>
+</head>
+<body>
+<script>
+fetch('/api/me').then((res) => {
+  window.location.href = res.ok ? '/dashboard.html' : '/login.html';
+});
+</script>
+</body>
+</html>

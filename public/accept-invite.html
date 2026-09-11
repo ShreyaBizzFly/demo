@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Accept invite — Demo SaaS</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="container">
+  <div class="card">
+    <h1>Join the team</h1>
+    <p id="intro">Set a password to accept your invite.</p>
+    <form id="acceptForm">
+      <label for="password">Password</label>
+      <input id="password" type="password" placeholder="At least 8 characters" required />
+
+      <button class="btn" type="submit">Accept invite</button>
+      <div class="error" id="error"></div>
+    </form>
+  </div>
+</div>
+<script>
+const params = new URLSearchParams(window.location.search);
+const token = params.get('token');
+const form = document.getElementById('acceptForm');
+const errorEl = document.getElementById('error');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const password = document.getElementById('password').value;
+
+  const res = await fetch('/api/org/accept', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error;
+    return;
+  }
+  window.location.href = '/dashboard.html';
+});
+</script>
+</body>
+</html>

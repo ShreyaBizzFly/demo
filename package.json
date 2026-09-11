@@ -1,0 +1,15 @@
+{
+  "name": "demo-buggy-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Small demo SaaS app with intentionally seeded bugs for bug-capture testing",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0"
+  }
+}
