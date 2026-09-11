@@ -295,14 +295,17 @@ journeys:
       - Open /forgot-password.html
       - Enter Email owner@demo.com
       - Click "Send reset link"
-    success_signal: a generic confirmation message is shown, identical to what a non-existent email would receive
+    success_signal: a generic confirmation message is shown, identical to what a non-existent email would receive; a "Reset your password" email actually arrives in Mailpit addressed to owner@demo.com, with a /reset-password.html?token=... link in its body
 
-  - name: Reset password with a valid link
+  - name: Reset password end to end via the emailed link
     steps:
-      - Open /reset-password.html?token=<a freshly issued reset token>
+      - Request a reset link for owner@demo.com
+      - Read the "Reset your password" email back from Mailpit (same mail-gate mechanism used elsewhere) and extract its reset link
+      - Open that link
       - Enter New password and Confirm new password (matching)
       - Click "Reset password"
-    success_signal: redirected to /login.html; logging in with the new password succeeds and the old password no longer works
+      - Log in with the new password
+    success_signal: redirected to /login.html after reset; logging in with the new password succeeds and the old password no longer works
 
   - name: Reset password with mismatched confirmation is rejected
     steps:
@@ -362,11 +365,17 @@ real third party, or any other tenant's data. Every write is free, reversible
 Explicitly, none of the following restrictions apply, and no case in this
 project should be downgraded to manual because of them:
 
-- No email verification step exists anywhere — signup, login, invite
-  acceptance, and password reset never send or require a real email/OTP. The
-  forgot-password flow prints its reset link to the server console instead of
-  sending mail (there is no SMTP integration), so the link is reachable for
-  testing without an inbox.
+- No email verification step exists at signup or login, and invite
+  acceptance never sends or requires a real email/OTP — only forgot/reset
+  password sends real mail.
+- The forgot-password flow sends a real email via SMTP to the same Mailpit
+  instance the project's mail-gate already reads from
+  (`MAIL_CATCHER_BASE_URL`), at `157.173.218.21:1025` (`demo-buggy-app/mailer.js`).
+  The reset link is retrievable from that inbox the same way any other
+  environment's OTP/reset email is — via the Mailpit HTTP API, matched on the
+  recipient address — so a full password-reset journey (request → read the
+  email → open the link → set a new password → log in with it) can be
+  automated end to end, not just the request step.
 - No payment, billing, or third-party OAuth flow exists.
 - No action here is platform-wide or irreversible in a way that harms another
   user — this app has exactly one seeded org's worth of data, and every

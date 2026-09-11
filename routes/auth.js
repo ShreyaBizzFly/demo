@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const express = require('express');
 const { db, createUser, verifyPassword, setPassword } = require('../db');
+const { sendResetEmail } = require('../mailer');
 
 const router = express.Router();
 
@@ -87,7 +88,7 @@ router.get('/me', (req, res) => {
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-router.post('/forgot-password', (req, res) => {
+router.post('/forgot-password', async (req, res) => {
   const { email } = req.body || {};
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email || '');
 
@@ -104,10 +105,14 @@ router.post('/forgot-password', (req, res) => {
     'INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)'
   ).run(user.id, token, expiresAt);
 
-  // No real mail server here — print the reset link the way a dev/staging
-  // environment without SMTP configured would, so the link is still
-  // reachable for manual testing.
-  console.log(`[demo] Password reset link for ${email}: /reset-password.html?token=${token}`);
+  const resetUrl = `${req.protocol}://${req.get('host')}/reset-password.html?token=${token}`;
+
+  try {
+    await sendResetEmail(email, resetUrl);
+  } catch (err) {
+    console.error('[demo] failed to send reset email:', err.message);
+    return res.status(500).json({ error: 'Could not send reset email. Try again later.' });
+  }
 
   res.json({ ok: true, message: 'If that account exists, a reset link has been sent.' });
 });
